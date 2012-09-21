@@ -9,10 +9,10 @@
         <li><b>Publish extensions.</b> Open up your ideas to let others contribute!</li>
       </ul>
       <% if ! User.current.logged? %>
-      <%= button_to "Login", {:controller => 'login'}, {:method => 'get' } %>
+      <%= button_to "Login", signin_path %>
       <% end %>
     </div>
-    
+
     <% if @news.any? %>
       <div class="box" id="news">
       <h3>Latest</h3>
