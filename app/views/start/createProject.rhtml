@@ -13,7 +13,7 @@ After you filled out the form below, you will have the following resources just 
 
 <div class="tabular settings box">
 <p><label>Project Type <span class="required">*</span> </label>
-<%= select_tag 'project_type', options_for_select( [['TYPO3 4.x Extension', 'v4_extension'], ['TYPO3 5.x Package', 'v5_package']], params[:project_type] ) %></p>
+<%= select_tag 'project_type', options_for_select( [['TYPO3 CMS Extension', 'v4_extension'], ['TYPO3 Flow Package', 'v5_package']], params[:project_type] ) %></p>
 
 <p><label>Name <span class="required">*</span> </label>
 <%= text_field_tag 'project_name', params[:project_name], :size => 30 %></p>
