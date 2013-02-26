@@ -103,15 +103,6 @@ class StartController < ApplicationController
       if @project.save
         @project.set_parent!(parent_id)
 
-        # Create SVN Directory
-        svn_directory = svn_base_directory + package_key
-        RAILS_DEFAULT_LOGGER.info("OWN SVN DIR"+svn_directory)
-
-        custom_system 'svn mkdir --config-dir=/tmp/.svntmp --non-interactive -m "Initializing project ' + package_key + ' (1/4)" ' + svn_directory
-        custom_system 'svn mkdir --config-dir=/tmp/.svntmp --non-interactive -m "Initializing project ' + package_key + ' (2/4)" ' + svn_directory + '/branches'
-        custom_system 'svn mkdir --config-dir=/tmp/.svntmp --non-interactive -m "Initializing project ' + package_key + ' (3/4)" ' + svn_directory + '/tags'
-        custom_system 'svn mkdir --config-dir=/tmp/.svntmp --non-interactive -m "Initializing project ' + package_key + ' (4/4)" ' + svn_directory + '/trunk'
-
         # Add Repository to project
         @repository = Repository.factory(:Subversion)
         @repository.project = @project
@@ -122,7 +113,23 @@ class StartController < ApplicationController
         # add User to Project
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
-        SvnPermissionHelper.write_all_authz_files
+        require 'amqp'
+
+        message = {
+            "event" => "project_created",
+            "project" => package_key
+        }
+
+        AMQP.start(:host => 'srv134.typo3.org', :port => 5672, :username => 'username', :password => 'password', :vhost => 'infrastructure_dev') do |connection|
+          channel = AMQP::Channel.new(connection)
+          queue   = channel.queue("org.typo3.forge.repo.svn.create", :durable => true)
+          channel.default_exchange.publish(message.to_json, :routing_key => queue.name, :persistent => true, :content_type => "application/json")
+          EM.add_timer(0.5) do
+            connnection.close do
+              EM.stop { exit }
+            end
+          end
+        end
 
         flash[:notice] = l(:notice_successful_create)
         render :action => :projectSuccessfullyCreated
