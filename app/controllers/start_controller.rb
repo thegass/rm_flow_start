@@ -113,17 +113,20 @@ class StartController < ApplicationController
         # add User to Project
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
+        # Write into MQ
         require 'amqp'
 
         message = {
-            "event" => "project_created",
-            "project" => package_key
+          "event" => "project_created",
+          "project" => package_key
         }
 
-        AMQP.start(:host => 'srv134.typo3.org', :port => 5672, :username => 'username', :password => 'password', :vhost => 'infrastructure_dev') do |connection|
+        AMQP.start(:host => 'srv134.typo3.org', :port => 5672, :username => 'dev.forge.typo3.org', :password =>'dev.forge.typo3.org', :vhost => 'infrastructure_dev') do |connection|
           channel = AMQP::Channel.new(connection)
-          queue   = channel.queue("org.typo3.forge.repo.svn.create", :durable => true)
-          channel.default_exchange.publish(message.to_json, :routing_key => queue.name, :persistent => true, :content_type => "application/json")
+          queue = channel.queue("org.typo3.forge.dev.repo.svn.create", :durable => true, :auto_delete => false, :exclusive => false)
+          exchange = channel.fanout("org.typo3.forge.dev.repo.svn.create", :durable => true, :auto_delete => false)
+          exchange.publish(message.to_json, :routing_key => queue.name, :persistent => true, :content_type => "application/json")
+
           EM.add_timer(0.5) do
             connnection.close do
               EM.stop { exit }
