@@ -1,5 +1,3 @@
-require "#{RAILS_ROOT}/vendor/plugins/flow_svn_permissions/app/helpers/svn_permission_helper.rb"
-
 class StartController < ApplicationController
   unloadable
 
