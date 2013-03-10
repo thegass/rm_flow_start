@@ -1,1 +1,1 @@
-gem 'amqp'
+gem 'bunny'

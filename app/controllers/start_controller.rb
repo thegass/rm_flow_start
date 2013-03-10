@@ -1,3 +1,5 @@
+require 'bunny'
+
 class StartController < ApplicationController
   unloadable
 
@@ -112,25 +114,23 @@ class StartController < ApplicationController
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
         # Write into MQ
-        require 'amqp'
+        amqp_config = YAML.load_file("amqp.yaml")["amqp"]
 
-        message = {
-          "event" => "project_created",
-          "project" => package_key
-        }
-
-        AMQP.start(:host => 'srv134.typo3.org', :port => 5672, :username => 'dev.forge.typo3.org', :password =>'dev.forge.typo3.org', :vhost => 'infrastructure_dev') do |connection|
-          channel = AMQP::Channel.new(connection)
-          queue = channel.queue("org.typo3.forge.dev.repo.svn.create", :durable => true, :auto_delete => false, :exclusive => false)
-          exchange = channel.fanout("org.typo3.forge.dev.repo.svn.create", :durable => true, :auto_delete => false)
-          exchange.publish(message.to_json, :routing_key => queue.name, :persistent => true, :content_type => "application/json")
-
-          EM.add_timer(0.5) do
-            connnection.close do
-              EM.stop { exit }
-            end
-          end
-        end
+        bunny = Bunny.new(host:     amqp_config["host"],
+                          port:     amqp_config["port"],
+                          username: amqp_config["username"],
+                          password: amqp_config["password"],
+                          vhost:    amqp_config["vhost"])
+        bunny.start
+        channel_name = "org.typo3.forge.dev.repo.svn.create"
+        exchange = bunny.exchange(channel_name)
+        exchange.publish("Creating new project",
+                         key: channel_name,
+                         headers: {
+                             event:   "project_created",
+                             project: package_key
+                         })
+        bunny.stop
 
         flash[:notice] = l(:notice_successful_create)
         render :action => :projectSuccessfullyCreated
