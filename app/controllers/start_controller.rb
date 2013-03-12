@@ -116,19 +116,19 @@ class StartController < ApplicationController
         # Write into MQ
         amqp_config = YAML.load_file("amqp.yaml")["amqp"]
 
-        bunny = Bunny.new(host:     amqp_config["host"],
-                          port:     amqp_config["port"],
-                          username: amqp_config["username"],
-                          password: amqp_config["password"],
-                          vhost:    amqp_config["vhost"])
+        bunny = Bunny.new(amqp_config["host"],
+                          amqp_config["port"],
+                          amqp_config["username"],
+                          amqp_config["password"],
+                          amqp_config["vhost"])
         bunny.start
         channel_name = "org.typo3.forge.dev.repo.svn.create"
         exchange = bunny.exchange(channel_name)
         exchange.publish("Creating new project",
-                         key: channel_name,
-                         headers: {
-                             event:   "project_created",
-                             project: package_key
+                         channel_name,
+                         {
+                             :event  =>  "project_created",
+                             :project => package_key
                          })
         bunny.stop
 
