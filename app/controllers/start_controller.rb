@@ -114,7 +114,7 @@ class StartController < ApplicationController
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
         # Write into MQ
-        amqp_config = YAML.load_file("amqp.yaml")["amqp"]
+        amqp_config = YAML.load_file("amqp.yml")["amqp"]
 
         bunny = Bunny.new(amqp_config["host"],
                           amqp_config["port"],
