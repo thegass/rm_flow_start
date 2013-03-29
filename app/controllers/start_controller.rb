@@ -1,4 +1,6 @@
 require 'bunny'
+require 'json'
+require 'yaml'
 
 class StartController < ApplicationController
   unloadable
@@ -116,20 +118,31 @@ class StartController < ApplicationController
         # Write into MQ
         amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
 
-        bunny = Bunny.new(amqp_config["host"],
-                          amqp_config["port"],
-                          amqp_config["username"],
-                          amqp_config["password"],
-                          amqp_config["vhost"])
+        bunny = Bunny.new(:host  => amqp_config["host"],
+                          :port  => amqp_config["port"],
+                          :user  => amqp_config["username"],
+                          :pass  => amqp_config["password"],
+                          :vhost => amqp_config["vhost"])
         bunny.start
+
         channel_name = "org.typo3.forge.dev.repo.svn.create"
-        exchange = bunny.exchange(channel_name)
-        exchange.publish("Creating new project",
-                         channel_name,
-                         {
-                             :event  =>  "project_created",
-                             :project => package_key
-                         })
+        channel = bunny.create_channel
+        exchange = channel.fanout(channel_name, :durable => true)
+
+        data = {
+            :event  =>  "project_created",
+            :project => package_key
+        }
+
+        exchange.publish(data.to_json,
+                         :routing_key => channel_name,
+                         :persistent => true,
+                         :mandatory => true,
+                         :content_type => "application/json",
+                         :user_id => amqp_config["username"],
+                         :app_id => "redmine"
+        )
+
         bunny.stop
 
         flash[:notice] = l(:notice_successful_create)
