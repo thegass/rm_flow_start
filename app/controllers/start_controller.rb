@@ -105,6 +105,8 @@ class StartController < ApplicationController
       if @project.save
         @project.set_parent!(parent_id)
 
+        logger.info "Creating project @project, triggered by #{User.current.login} (#{User.current.id})"
+
         # Add Repository to project
         @repository = Repository.factory(:Subversion)
         @repository.project = @project
@@ -118,6 +120,8 @@ class StartController < ApplicationController
         # Write into MQ
         amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
 
+        logger.info "Read AMQP config, connecting to amqp://#{amqp_config["username"]}@#{amqp_config["host"]}:#{amqp_config["port"]}/#{amqp_config["vhost"]}"
+
         bunny = Bunny.new(:host  => amqp_config["host"],
                           :port  => amqp_config["port"],
                           :user  => amqp_config["username"],
@@ -125,23 +129,35 @@ class StartController < ApplicationController
                           :vhost => amqp_config["vhost"])
         bunny.start
 
+        logger.info "Connected to #{amqp_config["host"]}"
+
         channel_name = "org.typo3.forge.dev.repo.svn.create"
+
+        logger.info "Creating channel #{channel_name}"
         channel = bunny.create_channel
+
+        logger.info "Connecting to exchange #{channel_name}"
         exchange = channel.fanout(channel_name, :durable => true)
 
-        data = {
+        message_data = {
             :event  =>  "project_created",
             :project => package_key
         }
 
-        exchange.publish(data.to_json,
-                         :routing_key => channel_name,
-                         :persistent => true,
-                         :mandatory => true,
-                         :content_type => "application/json",
-                         :user_id => amqp_config["username"],
-                         :app_id => "redmine"
-        )
+        message_metadata = {
+            :routing_key => channel_name,
+            :persistent => true,
+            :mandatory => true,
+            :content_type => "application/json",
+            :user_id => amqp_config["username"],
+            :app_id => "redmine on #{request.host}"
+        }
+
+        logger.info "Trying to publish message: #{message_data.to_json} with metadata: #{message_metadata.to_json}"
+
+        exchange.publish(message_data.to_json, message_metadata)
+
+        logger.info "Message published"
 
         bunny.stop
 
