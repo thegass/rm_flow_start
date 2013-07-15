@@ -8,7 +8,4 @@ ActionController::Routing::Routes.draw do |map|
         :controller => 'start',
         :action => 'createProject'
 
-  map.create_project '/start/about',
-        :controller => 'start',
-        :action => 'about'
 end

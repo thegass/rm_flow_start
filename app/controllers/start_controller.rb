@@ -6,7 +6,7 @@ class StartController < ApplicationController
   unloadable
 
   layout 'base'
-  before_filter :require_login, :except => [:index, :about, :auto_complete_for_project_name ]
+  before_filter :require_login, :except => [:index, :auto_complete_for_project_name ]
   include ProjectsHelper
 
   def index
@@ -179,6 +179,4 @@ class StartController < ApplicationController
     @project = Project.find("packages")
   end
 
-  def about
-  end
 end
