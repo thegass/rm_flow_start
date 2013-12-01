@@ -40,16 +40,16 @@ class StartController < ApplicationController
 
       base_identifier_name = ''
       parent_id = 0
-      svn_base_path = ''
+      git_base_path = ''
 
       package_key = params[:package_key]
 
       if params[:project_type] == 'v4_extension'
         parent_id = Project.find(Setting.plugin_flow_start['own_projects_version4_parent_identifier']).id
         base_identifier_name = Setting.plugin_flow_start['own_projects_version4_identifier_prefix']
-        svn_base_path = Setting.plugin_flow_start['own_projects_version4_svn_base_path']
+        git_base_path = Setting.plugin_flow_start['own_projects_version4_git_base_path']
 
-        svn_base_directory = Setting.plugin_flow_start['own_projects_version4_base_directory']
+        git_base_directory = Setting.plugin_flow_start['own_projects_version4_base_directory']
 
         if (!package_key.match(/^[a-z][a-z0-9_]*$/)) then
           flash.now[:error] = 'Your extension key has an invalid format. It should only consist of lowercase letters, numbers and underscores (_), and it must start with lowercase letters.'
@@ -60,9 +60,9 @@ class StartController < ApplicationController
       elsif params[:project_type] == 'v5_package'
         parent_id = Project.find(Setting.plugin_flow_start['own_projects_version5_parent_identifier']).id
         base_identifier_name = Setting.plugin_flow_start['own_projects_version5_identifier_prefix']
-        svn_base_path = Setting.plugin_flow_start['own_projects_version5_svn_base_path']
+        git_base_path = Setting.plugin_flow_start['own_projects_version5_git_base_path']
 
-        svn_base_directory = Setting.plugin_flow_start['own_projects_version5_base_directory']
+        git_base_directory = Setting.plugin_flow_start['own_projects_version5_base_directory']
 
         if (!package_key.match(/^[A-Z][a-zA-Z0-9_]*$/)) then
           flash.now[:error] = 'Your extension key has an invalid format. It should be written UpperCamelCased.'
@@ -108,11 +108,19 @@ class StartController < ApplicationController
         logger.info "Creating project @project, triggered by #{User.current.login} (#{User.current.id})"
 
         # Add Repository to project
-        @repository = Repository.factory(:Subversion)
+        @repository = Repository.factory(:Git)
         @repository.project = @project
 
-        @repository.url = Setting.plugin_flow_start['own_projects_svn_base_url'] + svn_base_path + package_key
+        repo_path = Setting.plugin_flow_start['own_projects_version4_base_directory'] + package_key + ".git"
+        @repository.url = 'file://' + repo_path
         @repository.save
+
+        logger.info "Setting up Git repository in #{repo_path}"
+        custom_system 'git init ' + repo_path
+        git_server_url = Setting.plugin_flow_start['own_projects_git_base_url'] + Setting.plugin_flow_start['own_projects_version4_git_base_path'] + package_key + '.git' 
+
+        logger.info "Adding remote origin #{git_server_url}"
+        custom_system 'cd ' + repo_path + '; git remote add origin ' + git_server_url
 
         # add User to Project
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
@@ -131,7 +139,7 @@ class StartController < ApplicationController
 
         logger.info "Connected to #{amqp_config["host"]}"
 
-        channel_name = "org.typo3.forge.dev.repo.svn.create"
+        channel_name = "org.typo3.forge.repo.git.create"
 
         logger.info "Creating channel #{channel_name}"
         channel = bunny.create_channel
