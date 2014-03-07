@@ -41,6 +41,8 @@ class StartController < ApplicationController
       base_identifier_name = ''
       parent_id = 0
       git_base_path = ''
+      create_repo = false  # user must check the "create repo" box to override
+      force_review = false # user must check the "force review" box to override
 
       package_key = params[:package_key]
 
@@ -86,6 +88,18 @@ class StartController < ApplicationController
         return
       end
 
+      # enable creation of repo ?
+      if (params[:create_repo] and params[:create_repo] == 'yes') then
+        create_repo = true
+      end
+
+      # influence default permissions inside gerrit when repo is created
+      # enable/force review on the git repo (commits have to go through refs/for)
+      if (params[:force_review] and params[:force_review] == 'yes') then
+        force_review = true
+      else
+        force_review = false
+      end
 
       identifier_name = base_identifier_name + package_key.downcase
 
@@ -125,50 +139,54 @@ class StartController < ApplicationController
         # add User to Project
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
-        # Write into MQ
-        amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
+        # only push into message queue in case a repository was requested
+        if create_repo then
+          # @todo refactor into service/method so it can be reused outside of the start controller
+          # Write into MQ
+          amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
 
-        logger.info "Read AMQP config, connecting to amqp://#{amqp_config["username"]}@#{amqp_config["host"]}:#{amqp_config["port"]}/#{amqp_config["vhost"]}"
+          logger.info "Read AMQP config, connecting to amqp://#{amqp_config["username"]}@#{amqp_config["host"]}:#{amqp_config["port"]}/#{amqp_config["vhost"]}"
 
-        bunny = Bunny.new(:host  => amqp_config["host"],
-                          :port  => amqp_config["port"],
-                          :user  => amqp_config["username"],
-                          :pass  => amqp_config["password"],
-                          :vhost => amqp_config["vhost"])
-        bunny.start
+          bunny = Bunny.new(:host  => amqp_config["host"],
+                            :port  => amqp_config["port"],
+                            :user  => amqp_config["username"],
+                            :pass  => amqp_config["password"],
+                            :vhost => amqp_config["vhost"])
+          bunny.start
 
-        logger.info "Connected to #{amqp_config["host"]}"
+          logger.info "Connected to #{amqp_config["host"]}"
 
-        channel_name = "org.typo3.forge.repo.git.create"
+          channel_name = "org.typo3.forge.repo.git.create"
 
-        logger.info "Creating channel #{channel_name}"
-        channel = bunny.create_channel
+          logger.info "Creating channel #{channel_name}"
+          channel = bunny.create_channel
 
-        logger.info "Connecting to exchange #{channel_name}"
-        exchange = channel.fanout(channel_name, :durable => true)
+          logger.info "Connecting to exchange #{channel_name}"
+          exchange = channel.fanout(channel_name, :durable => true)
 
-        message_data = {
-            :event  =>  "project_created",
-            :project => package_key
-        }
+          message_data = {
+              :event  =>  "project_created",
+              :project => package_key,
+              :force_review => force_review
+          }
 
-        message_metadata = {
-            :routing_key => channel_name,
-            :persistent => true,
-            :mandatory => true,
-            :content_type => "application/json",
-            :user_id => amqp_config["username"],
-            :app_id => "redmine on #{request.host}"
-        }
+          message_metadata = {
+              :routing_key => channel_name,
+              :persistent => true,
+              :mandatory => true,
+              :content_type => "application/json",
+              :user_id => amqp_config["username"],
+              :app_id => "redmine on #{request.host}"
+          }
 
-        logger.info "Trying to publish message: #{message_data.to_json} with metadata: #{message_metadata.to_json}"
+          logger.info "Trying to publish message: #{message_data.to_json} with metadata: #{message_metadata.to_json}"
 
-        exchange.publish(message_data.to_json, message_metadata)
+          exchange.publish(message_data.to_json, message_metadata)
 
-        logger.info "Message published"
+          logger.info "Message published"
 
-        bunny.stop
-
+          bunny.stop
+        end #
         flash[:notice] = l(:notice_successful_create)
         render :action => :projectSuccessfullyCreated
       else # if !@project.save 

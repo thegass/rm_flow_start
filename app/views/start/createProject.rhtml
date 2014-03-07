@@ -23,7 +23,14 @@ After you filled out the form below, you will have the following resources just 
 
 <p><label>Short Description </label>
 <%= text_area_tag 'description', params[:description], :cols => 60, :rows => 5 %></p>
+
+<p><label title="If checked a git repository will be created for your project.">Create git repositoroy ? </label>
+<%= check_box_tag 'create_repo', 'yes', (params[:commit] ? params[:create_repo] : true) %></p>
+
+<p><label title="Otherwise commits can be directly pushed. Only impacts initial permission setup, which can be adapted any time later in gerrit.">Force Review Workflow </label>
+<%= check_box_tag 'force_review', 'yes', params[:force_review] %></p>
+
 </div>
- 
+
 <%= submit_tag 'Register Project!' %>
 <% end %> 
