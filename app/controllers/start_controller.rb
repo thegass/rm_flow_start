@@ -121,27 +121,27 @@ class StartController < ApplicationController
 
         logger.info "Creating project @project, triggered by #{User.current.login} (#{User.current.id})"
 
-        # Add Repository to project
-        @repository = Repository.factory(:Git)
-        @repository.project = @project
-
-        repo_path = Setting.plugin_flow_start['own_projects_version4_base_directory'] + package_key + ".git"
-        @repository.url = 'file://' + repo_path
-        @repository.save
-
-        logger.info "Setting up Git repository in #{repo_path}"
-        custom_system 'git init ' + repo_path
-        git_server_url = Setting.plugin_flow_start['own_projects_git_base_url'] + Setting.plugin_flow_start['own_projects_version4_git_base_path'] + package_key + '.git' 
-
-        logger.info "Adding remote origin #{git_server_url}"
-        custom_system 'cd ' + repo_path + '; git remote add origin ' + git_server_url
-
         # add User to Project
         @project.members << Member.new(:user_id => User.current.id, :role_ids => [Setting.plugin_flow_start['own_projects_first_user_role_id']])
 
-        # only push into message queue in case a repository was requested
+        # only create repo in case it was requested
+        # @todo refactor into service/method so it can be reused outside of the start controller
         if create_repo then
-          # @todo refactor into service/method so it can be reused outside of the start controller
+          # Add Repository to project
+          @repository = Repository.factory(:Git)
+          @repository.project = @project
+
+          repo_path = Setting.plugin_flow_start['own_projects_version4_base_directory'] + package_key + ".git"
+          @repository.url = 'file://' + repo_path
+          @repository.save
+
+          logger.info "Setting up Git repository in #{repo_path}"
+          custom_system 'git init ' + repo_path
+          git_server_url = Setting.plugin_flow_start['own_projects_git_base_url'] + Setting.plugin_flow_start['own_projects_version4_git_base_path'] + package_key + '.git'
+
+          logger.info "Adding remote origin #{git_server_url}"
+          custom_system 'cd ' + repo_path + '; git remote add origin ' + git_server_url
+
           # Write into MQ
           amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
 
