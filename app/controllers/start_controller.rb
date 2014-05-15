@@ -164,6 +164,7 @@ class StartController < ApplicationController
           message_data = {
               :event  =>  "project_created",
               :project => package_key,
+              :project_path => git_base_path,
               :force_review => force_review
           }
 
