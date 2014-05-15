@@ -139,9 +139,6 @@ class StartController < ApplicationController
           custom_system 'git init --bare ' + repo_path
           git_server_url = Setting.plugin_flow_start['own_projects_git_base_url'] + Setting.plugin_flow_start['own_projects_version4_git_base_path'] + package_key + '.git'
 
-          logger.info "Adding remote origin #{git_server_url}"
-          custom_system 'cd ' + repo_path + '; git remote add origin ' + git_server_url
-
           # Write into MQ
           amqp_config = YAML.load_file("config/amqp.yml")["amqp"]
 
