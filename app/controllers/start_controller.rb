@@ -136,7 +136,7 @@ class StartController < ApplicationController
           @repository.save
 
           logger.info "Setting up Git repository in #{repo_path}"
-          custom_system 'git init ' + repo_path
+          custom_system 'git init --bare ' + repo_path
           git_server_url = Setting.plugin_flow_start['own_projects_git_base_url'] + Setting.plugin_flow_start['own_projects_version4_git_base_path'] + package_key + '.git'
 
           logger.info "Adding remote origin #{git_server_url}"
